@@ -3,6 +3,8 @@ using MySQL and Tableau
 
 Hourly wage disparities across different demographic groups, including gender and race, have long been a subject of concern and interest. To gain deeper insights into these disparities and their underlying factors, this project aims to analyze a dataset sourced from Kaggle containing hourly wage data spanning from 1973 to 2022.
 
+https://www.kaggle.com/datasets/asaniczka/wages-by-education-in-the-usa-1973-2022
+
 Key questions to be addressed include:
 
 1. Identifying the years, categories, and education levels associated with the highest hourly wages for the overall population.<br>
