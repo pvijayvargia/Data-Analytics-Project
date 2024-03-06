@@ -1,0 +1,157 @@
+use wages;
+
+#Question 1
+#In which decade, category and level of education were the hourly wages highest for overall population?
+select hw.year, c.description , le.description , hw.hourly_wage_dollars
+from hourly_wages hw right join levels_of_education le
+on hw.LOE_Code = le.LOE_Code
+join categories c on hw.category_code = c.category_code
+Order By hourly_wage_dollars desc
+LIMIT 1 ;
+
+#Question 2
+#Is average hourly_wage for white men having an advanced degree more than hourly_wage for black/Hispanic
+#men having an advanced degree over the years?
+select avg(w.hourly_wage_dollars) over(partition by w.year order by w.year) as Hourly_wage_W,
+avg(b.hourly_wage_dollars) over(partition by b.year order by b.year) as Hourly_wage_B,
+avg(h.hourly_wage_dollars) over(partition by h.year order by h.year) as Hourly_wage_H,
+h.year
+from hourly_wages_black b join hourly_wages_white w
+on b.ID = w.ID
+join hourly_wages_hispanic h
+on w.ID = h.ID
+where w.category_code = "M" and h.category_code = "M" and b.category_code = "M"
+and w.LOE_Code = "ADV_D" and h.LOE_Code = "ADV_D" and b.LOE_Code = "ADV_D";
+
+#Question 3
+#Is there a year where hourly_wage for men and women were same? If not, which category is paid less?
+SELECT year,
+    CASE
+        WHEN AVG(CASE WHEN category_code = 'M' THEN Hourly_wage_dollars END) = AVG(CASE WHEN category_code = 'F' THEN hourly_wage_dollars END) 
+        THEN 'Equal'
+        WHEN AVG(CASE WHEN category_code = 'M' THEN hourly_wage_dollars END) > AVG(CASE WHEN category_code = 'F' THEN hourly_wage_dollars END) 
+        THEN 'Female Paid Less'
+        ELSE 'Male Paid Less'
+    END AS wage_comparison
+FROM hourly_wages
+WHERE category_code IN ('M', 'F')
+GROUP BY year;
+
+#Question 4
+#Which year has the highest difference in hourly wages for men and women across all levels of education?
+SELECT
+    year, LOE_code,
+    MAX(avg_hourly_wage_difference) AS max_difference
+FROM (
+    SELECT
+        year, LOE_code,
+        ABS(MAX(CASE WHEN category_code = 'M' THEN hourly_wage_dollars END) - 
+            MAX(CASE WHEN category_code = 'W' THEN hourly_wage_dollars END)) AS avg_hourly_wage_difference
+    FROM hourly_wages
+    GROUP BY year, LOE_code
+) AS yearly_differences
+group by year, LOE_code
+order by max_difference desc
+limit 1;
+
+
+
+
+#Question 5
+#Have white women being getting paid more than black/Hispanic women over the years? 
+SELECT Distinct w.year,
+( SELECT AVG(hourly_wage_dollars)
+  FROM hourly_wages_white
+  WHERE category_code = 'W' AND year = w.year
+    ) AS Hourly_wage_W,
+( SELECT AVG(hourly_wage_dollars)
+	FROM hourly_wages_black
+	WHERE category_code = 'W' AND year = w.year
+    ) AS Hourly_wage_B,
+( SELECT AVG(hourly_wage_dollars)
+	FROM hourly_wages_hispanic
+	WHERE category_code = 'W' AND year = w.year
+    ) AS Hourly_wage_H
+FROM hourly_wages_white w
+WHERE w.category_code = 'W'
+ORDER BY w.year;
+
+#Question 6
+#Does having an advanced degree increase the hourly wages for black/Hispanic women compared to white women with only
+#advanced bachelors degree?
+SELECT w.year,
+    AVG(CASE WHEN w.category_code = 'W' AND w.LOE_code = 'BACH_D' THEN w.hourly_wage_dollars END) AS Avg_HW_White_BACH_F,
+    AVG(CASE WHEN b.category_code = 'W' AND b.LOE_code = 'ADV_D' THEN b.hourly_wage_dollars END) AS Avg_HW_Black_ADV_F,
+    AVG(CASE WHEN h.category_code = 'W' AND h.LOE_code = 'ADV_D' THEN h.hourly_wage_dollars END) AS Avg_HW_Hispanic_ADV_F
+FROM Hourly_wages_white w
+JOIN Hourly_wages_black b ON w.ID = b.ID
+JOIN Hourly_wages_hispanic h ON b.ID = h.ID 
+GROUP BY w.year
+ORDER BY w.year;
+
+
+#Question 7
+#What level of education gives the maximum jump in hourly wages for the entire population?
+SELECT le.description AS education_level,
+       MAX(hw.Hourly_wage_dollars) - MIN(hw.Hourly_wage_dollars) AS wage_jump
+FROM levels_of_education le
+JOIN hourly_wages hw ON hw.LOE_Code = le.LOE_Code
+GROUP BY le.description
+ORDER BY wage_jump DESC
+LIMIT 1;
+
+#Question 8
+#Is there a year where black/Hispanic men or women with advanced degree getting paid more than white men or women
+#with advanced degree?
+SELECT 
+    w.year,
+    MAX(CASE WHEN w.category_code = 'M' AND w.LOE_code = 'ADV_D' THEN w.hourly_wage_dollars END) AS Avg_HW_White_M,
+    MAX(CASE WHEN b.category_code = 'M' AND b.LOE_code = 'ADV_D' THEN b.hourly_wage_dollars END) AS Avg_HW_Black_M,
+    MAX(CASE WHEN h.category_code = 'M' AND h.LOE_code = 'ADV_D' THEN h.hourly_wage_dollars END) AS Avg_HW_Hispanic_M,
+    'White Men make more than Black/Hispanic men' AS Comment
+FROM 
+    Hourly_wages_white w
+LEFT JOIN 
+    Hourly_wages_black b ON w.ID = b.ID AND b.category_code = 'M' AND b.LOE_code = 'ADV_D'
+LEFT JOIN 
+    Hourly_wages_hispanic h ON w.ID = h.ID AND h.category_code = 'M' AND h.LOE_code = 'ADV_D'
+GROUP BY
+    w.year
+HAVING
+    MAX(CASE WHEN w.category_code = 'M' AND w.LOE_code = 'ADV_D' THEN w.hourly_wage_dollars END) >
+    COALESCE(MAX(CASE WHEN b.category_code = 'M' AND b.LOE_code = 'ADV_D' THEN b.hourly_wage_dollars END), 0)
+    OR
+    MAX(CASE WHEN w.category_code = 'M' AND w.LOE_code = 'ADV_D' THEN w.hourly_wage_dollars END) >
+    COALESCE(MAX(CASE WHEN h.category_code = 'M' AND h.LOE_code = 'ADV_D' THEN h.hourly_wage_dollars END), 0)
+
+UNION ALL
+
+SELECT 
+    w.year,
+    MAX(CASE WHEN w.category_code = 'M' AND w.LOE_code = 'ADV_D' THEN w.hourly_wage_dollars END) AS Avg_HW_White_M,
+    MAX(CASE WHEN b.category_code = 'M' AND b.LOE_code = 'ADV_D' THEN b.hourly_wage_dollars END) AS Avg_HW_Black_M,
+    MAX(CASE WHEN h.category_code = 'M' AND h.LOE_code = 'ADV_D' THEN h.hourly_wage_dollars END) AS Avg_HW_Hispanic_M,
+    'White Men make less than /equal to Black/Hispanic men' AS Comment
+FROM 
+    Hourly_wages_white w
+LEFT JOIN 
+    Hourly_wages_black b ON w.ID = b.ID AND b.category_code = 'M' AND b.LOE_code = 'ADV_D'
+LEFT JOIN 
+    Hourly_wages_hispanic h ON w.ID = h.ID AND h.category_code = 'M' AND h.LOE_code = 'ADV_D'
+GROUP BY
+    w.year
+HAVING
+    MAX(CASE WHEN w.category_code = 'M' AND w.LOE_code = 'ADV_D' THEN w.hourly_wage_dollars END) <=
+    COALESCE(MAX(CASE WHEN b.category_code = 'M' AND b.LOE_code = 'ADV_D' THEN b.hourly_wage_dollars END), 0)
+    AND
+    MAX(CASE WHEN w.category_code = 'M' AND w.LOE_code = 'ADV_D' THEN w.hourly_wage_dollars END) <=
+    COALESCE(MAX(CASE WHEN h.category_code = 'M' AND h.LOE_code = 'ADV_D' THEN h.hourly_wage_dollars END), 0);
+
+
+
+
+
+
+
+
+
